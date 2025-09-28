@@ -26,6 +26,8 @@ public sealed class AppDbContext : DbContext
             b.Property(x => x.ToAirport).IsRequired().HasMaxLength(3);
             b.Property(x => x.Capacity).IsRequired();
             b.Property(x => x.BaseFare).HasColumnType("decimal(18,2)");
+            b.Property(x => x.DepartureUtc).IsRequired();
+            b.Property(x => x.ArrivalUtc).IsRequired();
         });
 
         modelBuilder.Entity<Passenger>(b => { b.HasKey(x => x.Id); });

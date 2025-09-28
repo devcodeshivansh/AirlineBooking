@@ -19,11 +19,25 @@ public sealed class FlightQueryService : IFlightQueryService
     {
         var dateStart = new DateTimeOffset(date, TimeSpan.Zero);
         var dateEnd = dateStart.AddDays(1);
-
+        
+        var fromUpper = from.Trim().ToUpperInvariant();
+        var toUpper = to.Trim().ToUpperInvariant();
+        
         return await _db.Flights
-            .Where(f => f.FromAirport == from.ToUpper() && f.ToAirport == to.ToUpper()
-                        && f.DepartureUtc >= dateStart && f.DepartureUtc < dateEnd)
-            .Select(f => new FlightDto(f.Id, f.FlightNumber, f.FromAirport, f.ToAirport, f.DepartureUtc, f.ArrivalUtc, f.BaseFare))
+            .Where(f => f.FromAirport == fromUpper
+                        && f.ToAirport == toUpper
+                        && f.DepartureUtc >= dateStart
+                        && f.DepartureUtc < dateEnd)
+            .Select(f => new FlightDto(
+                f.Id,
+                f.FlightNumber,
+                f.FromAirport,
+                f.ToAirport,
+                f.DepartureUtc,
+                f.ArrivalUtc,
+                f.BaseFare))
             .ToListAsync(ct);
+
+       
     }
 }

@@ -73,6 +73,7 @@ builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBeh
 builder.Services.AddScoped<IIdempotencyStore, IdempotencyStore>();
 builder.Services.AddScoped<IFlightQueryService, FlightQueryService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
+builder.Services.AddScoped<IFlightCreateService, FlightCreateService>();
 
 // Swagger + Rate Limiting + Problem Details
 builder.Services.AddEndpointsApiExplorer();
