@@ -3,6 +3,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace AirlineBooking.Api.Controllers;
 
@@ -11,22 +12,28 @@ namespace AirlineBooking.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IConfiguration _config;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IConfiguration config)
+    public AuthController(IConfiguration config, ILogger<AuthController> logger)
     {
         _config = config;
+        _logger = logger;
     }
 
     [HttpPost("login")]
     public IActionResult Login([FromBody] LoginRequest request)
     {
+        _logger.LogInformation("Login attempt for user {Username}", request.Username);
+
         // Simple mock user check
         if (request.Username == "admin" && request.Password == "password")
         {
             var token = GenerateJwtToken(request.Username);
+            _logger.LogInformation("Successful login for user {Username}", request.Username);
             return Ok(new { Token = token });
         }
 
+        _logger.LogWarning("Invalid login attempt for user {Username}", request.Username);
         return Unauthorized();
     }
 
