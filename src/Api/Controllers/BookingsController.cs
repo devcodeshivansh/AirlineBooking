@@ -1,12 +1,14 @@
 ﻿using AirlineBooking.Application.Bookings.Commands;
 using AirlineBooking.Application.Bookings.Queries;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AirlineBooking.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class BookingsController : ControllerBase
 {
     private readonly IMediator _mediator;
