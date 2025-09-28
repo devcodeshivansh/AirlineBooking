@@ -67,33 +67,6 @@ app.UseRateLimiter();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// Minimal API endpoints
-app.MapGet("/", () => Results.Redirect("/swagger"));
-
-app.MapGet("/api/flights/search", async (string from, string to, DateTime date, IMediator mediator) =>
-{
-    var res = await mediator.Send(new SearchFlightsQuery(from, to, date));
-    return Results.Ok(res);
-}).WithName("SearchFlights").WithOpenApi();
-
-app.MapPost("/api/bookings", async (CreateBookingCommand cmd, IMediator mediator) =>
-{
-    var res = await mediator.Send(cmd);
-    return Results.Ok(res);
-}).WithName("CreateBooking").WithOpenApi();
-
-app.MapPost("/api/bookings/confirm/{pnr}", async (string pnr, IMediator mediator) =>
-{
-    var ok = await mediator.Send(new ConfirmBookingCommand(pnr));
-    return ok ? Results.NoContent() : Results.NotFound();
-}).WithName("ConfirmBooking").WithOpenApi();
-
-app.MapGet("/api/bookings/{pnr}", async (string pnr, IMediator mediator) =>
-{
-    var res = await mediator.Send(new GetBookingByPnrQuery(pnr));
-    return res is null ? Results.NotFound() : Results.Ok(res);
-}).WithName("GetBookingByPnr").WithOpenApi();
-
 // Seed dev data (only if DB empty)
 //using (var scope = app.Services.CreateScope())
 //{
@@ -114,5 +87,9 @@ app.MapGet("/api/bookings/{pnr}", async (string pnr, IMediator mediator) =>
 //        await db.SaveChangesAsync();
 //    }
 //}
+
+app.UseHttpsRedirection();
+app.UseAuthorization();
+app.MapControllers();
 
 app.Run();
