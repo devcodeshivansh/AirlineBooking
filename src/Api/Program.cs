@@ -1,4 +1,4 @@
-using AirlineBooking.Application.Bookings.Commands;
+﻿using AirlineBooking.Application.Bookings.Commands;
 using AirlineBooking.Application.Bookings.Queries;
 using AirlineBooking.Application.Common.Behaviors;
 using AirlineBooking.Application.Common.Interfaces;
@@ -10,16 +10,44 @@ using MediatR;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
-using Hellang.Middleware.ProblemDetails;;
+using Hellang.Middleware.ProblemDetails;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var jwtSettings = builder.Configuration.GetSection("Jwt");
+var key = Encoding.ASCII.GetBytes(jwtSettings["Key"]);
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtSettings["Issuer"],
+        ValidAudience = jwtSettings["Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(key)
+    };
+});
 
 // Serilog
 builder.Host.UseSerilog((ctx, lc) => lc
     .ReadFrom.Configuration(ctx.Configuration)
     .Enrich.FromLogContext());
 
-// Db: SQLite (dev) / PostgreSQL (prod)
+// DbContext: SQLite or PostgreSQL
 var usePostgres = builder.Configuration.GetValue<bool>("Database:UsePostgres");
 builder.Services.AddDbContext<AppDbContext>(opt =>
 {
@@ -34,24 +62,58 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
     }
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(); // ✅ Add Controllers
 
-// MediatR + Validators + Pipeline
+// MediatR + Validation
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(SearchFlightsQuery).Assembly));
 builder.Services.AddValidatorsFromAssembly(typeof(CreateBookingCommand).Assembly);
 builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
-// Services
+// App Services
 builder.Services.AddScoped<IIdempotencyStore, IdempotencyStore>();
 builder.Services.AddScoped<IFlightQueryService, FlightQueryService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
+builder.Services.AddScoped<IFlightCreateService, FlightCreateService>();
 
-// API
+// Swagger + Rate Limiting + Problem Details
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddProblemDetails(options =>
+builder.Services.AddSwaggerGen(c =>
 {
-    options.IncludeExceptionDetails = (ctx, ex) => true;
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Airline Booking API",
+        Version = "v1"
+    });
+
+    // 🔐 Add JWT Authentication scheme
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter 'Bearer' [space] and then your valid token.\r\n\r\nExample: Bearer eyJhbGciOiJIUzI1NiIs..."
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+builder.Services.AddProblemDetails(opt =>
+{
+    opt.IncludeExceptionDetails = (ctx, ex) => true;
 });
 builder.Services.AddRateLimiter(_ => _.AddFixedWindowLimiter("fixed", opt =>
 {
@@ -61,58 +123,16 @@ builder.Services.AddRateLimiter(_ => _.AddFixedWindowLimiter("fixed", opt =>
 }));
 
 var app = builder.Build();
+
 app.UseSerilogRequestLogging();
 app.UseProblemDetails();
 app.UseRateLimiter();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// Minimal API endpoints
-app.MapGet("/", () => Results.Redirect("/swagger"));
-
-app.MapGet("/api/flights/search", async (string from, string to, DateTime date, IMediator mediator) =>
-{
-    var res = await mediator.Send(new SearchFlightsQuery(from, to, date));
-    return Results.Ok(res);
-}).WithName("SearchFlights").WithOpenApi();
-
-app.MapPost("/api/bookings", async (CreateBookingCommand cmd, IMediator mediator) =>
-{
-    var res = await mediator.Send(cmd);
-    return Results.Ok(res);
-}).WithName("CreateBooking").WithOpenApi();
-
-app.MapPost("/api/bookings/confirm/{pnr}", async (string pnr, IMediator mediator) =>
-{
-    var ok = await mediator.Send(new ConfirmBookingCommand(pnr));
-    return ok ? Results.NoContent() : Results.NotFound();
-}).WithName("ConfirmBooking").WithOpenApi();
-
-app.MapGet("/api/bookings/{pnr}", async (string pnr, IMediator mediator) =>
-{
-    var res = await mediator.Send(new GetBookingByPnrQuery(pnr));
-    return res is null ? Results.NotFound() : Results.Ok(res);
-}).WithName("GetBookingByPnr").WithOpenApi();
-
-// Seed dev data (only if DB empty)
-//using (var scope = app.Services.CreateScope())
-//{
-//    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-//    await db.Database.MigrateAsync();
-//    if (!db.Flights.Any())
-//    {
-//        var delhi = "DEL"; var mumbai = "BOM";
-//        db.Flights.Add(new AirlineBooking.Domain.Flights.Flight("AI101", delhi, mumbai,
-//            DateTimeOffset.UtcNow.Date.AddHours(6), DateTimeOffset.UtcNow.Date.AddHours(8), 180, 4500));
-//        db.Flights.Add(new AirlineBooking.Domain.Flights.Flight("AI102", mumbai, delhi,
-//            DateTimeOffset.UtcNow.Date.AddHours(18), DateTimeOffset.UtcNow.Date.AddHours(20), 180, 4700));
-//        await db.SaveChangesAsync();
-
-//        var flights = db.Flights.ToList();
-//        foreach (var f in flights)
-//            db.SeatInventories.Add(new AirlineBooking.Domain.Inventory.SeatInventory(f.Id, f.Capacity));
-//        await db.SaveChangesAsync();
-//    }
-//}
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers(); // ✅ Enable controllers
 
 app.Run();
