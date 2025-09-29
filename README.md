@@ -17,6 +17,24 @@
 4. Run (F5). First run applies EF migrations and seeds sample flights.
 5. Open Swagger at `https://localhost:PORT/swagger`.
 
+## Deploy to Azure
+1. Review the infrastructure templates under [`infra/`](infra/) and update `infra/parameters.example.json` with unique resource names. Copy it to `infra/parameters.json` when ready.
+2. Deploy the infrastructure with the Azure CLI:
+   ```bash
+   az deployment group create \
+     --resource-group <your-resource-group> \
+     --template-file infra/main.bicep \
+     --parameters @infra/parameters.json
+   ```
+3. Build and push the container image using Docker:
+   ```bash
+   az acr login --name <registryName>
+   docker build -t <registryLoginServer>/airlinebooking-api:latest .
+   docker push <registryLoginServer>/airlinebooking-api:latest
+   ```
+4. (Optional) Configure the provided [Azure Pipeline](azure-pipelines.yml) to automate build, test, image publishing, infrastructure deployment and Web App updates.
+5. Set the required application settings or connection strings (e.g., `Database__UsePostgres`, `ConnectionStrings__Postgres`) either through pipeline variables or the Web App configuration UI.
+
 ### API samples
 - **Search flights**: `GET /api/flights/search?from=DEL&to=BOM&date=2025-09-26`  
 - **Create booking**:  
