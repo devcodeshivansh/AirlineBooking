@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "prod"
+    },
+    "acrName": {
+      "value": "<yourUniqueRegistryName>"
+    },
+    "appServicePlanName": {
+      "value": "prod-plan"
+    },
+    "appServicePlanSku": {
+      "value": "B1"
+    },
+    "webAppName": {
+      "value": "<yourUniqueWebAppName>"
+    },
+    "containerImageName": {
+      "value": "airlinebooking-api"
+    },
+    "containerImageTag": {
+      "value": "latest"
+    },
+    "postgresConnectionString": {
+      "value": "Host=<server>.postgres.database.azure.com;Port=5432;Database=airlinebooking;Username=<user>;Password=<password>;Ssl Mode=Require"
+    },
+    "usePostgres": {
+      "value": true
+    }
+  }
+}

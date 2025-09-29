@@ -12,7 +12,10 @@ using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Hellang.Middleware.ProblemDetails;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using System.Linq;
 using System.Text;
 using Microsoft.OpenApi.Models;
 
@@ -113,7 +116,40 @@ builder.Services.AddSwaggerGen(c =>
 });
 builder.Services.AddProblemDetails(opt =>
 {
-    opt.IncludeExceptionDetails = (ctx, ex) => true;
+    opt.IncludeExceptionDetails = (ctx, _) => builder.Environment.IsDevelopment();
+
+    opt.OnBeforeWriteDetails = (ctx, problem) =>
+    {
+        if (!problem.Extensions.ContainsKey("traceId"))
+        {
+            problem.Extensions["traceId"] = ctx.TraceIdentifier;
+        }
+    };
+
+    opt.Map<ValidationException>((ctx, exception) =>
+    {
+        var errors = exception.Errors
+            .GroupBy(error => error.PropertyName ?? string.Empty)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(error => error.ErrorMessage).ToArray());
+
+        return new ValidationProblemDetails(errors)
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = "One or more validation errors occurred.",
+            Detail = "See the errors property for details.",
+            Instance = ctx.Request.Path,
+            Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1"
+        };
+    });
+
+    opt.MapToStatusCode<ArgumentException>(StatusCodes.Status400BadRequest);
+    opt.MapToStatusCode<ArgumentOutOfRangeException>(StatusCodes.Status400BadRequest);
+    opt.MapToStatusCode<InvalidOperationException>(StatusCodes.Status409Conflict);
+    opt.MapToStatusCode<DbUpdateException>(StatusCodes.Status409Conflict);
+    opt.MapToStatusCode<DbUpdateConcurrencyException>(StatusCodes.Status409Conflict);
+    opt.MapToStatusCode<Exception>(StatusCodes.Status500InternalServerError);
 });
 builder.Services.AddRateLimiter(_ => _.AddFixedWindowLimiter("fixed", opt =>
 {

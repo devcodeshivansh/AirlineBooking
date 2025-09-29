@@ -1,0 +1,124 @@
+trigger:
+  branches:
+    include:
+      - main
+
+variables:
+  buildConfiguration: 'Release'
+  imageRepository: 'airlinebooking-api'
+  dockerfilePath: 'Dockerfile'
+  buildContext: '.'
+  tag: '$(Build.BuildId)'
+  # The following variables must be provided via pipeline variables or variable groups:
+  # dockerRegistryServiceConnection, azureSubscriptionServiceConnection,
+  # resourceGroupName, acrName, acrLoginServer, webAppName, appServicePlanName,
+  # environmentName, USE_POSTGRES (optional), POSTGRES_CONNECTION_STRING (optional)
+
+stages:
+  - stage: Build
+    displayName: Build and Test
+    jobs:
+      - job: Build
+        displayName: Restore, Build, Test and Publish
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Install .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '9.0.x'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore solution'
+            inputs:
+              command: 'restore'
+              projects: 'AirlineBooking.sln'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Build solution'
+            inputs:
+              command: 'build'
+              projects: 'AirlineBooking.sln'
+              arguments: '--configuration $(buildConfiguration)'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Test solution'
+            inputs:
+              command: 'test'
+              projects: 'AirlineBooking.sln'
+              arguments: '--configuration $(buildConfiguration) --no-build'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Publish API'
+            inputs:
+              command: 'publish'
+              publishWebProjects: false
+              projects: 'src/Api/Api.csproj'
+              arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/publish'
+              zipAfterPublish: false
+
+          - publish: '$(Build.ArtifactStagingDirectory)/publish'
+            displayName: 'Publish API artifact'
+            artifact: 'api'
+
+          - task: Docker@2
+            displayName: 'Build and push image'
+            inputs:
+              command: 'buildAndPush'
+              repository: '$(imageRepository)'
+              dockerfile: '$(dockerfilePath)'
+              buildContext: '$(buildContext)'
+              containerRegistry: '$(dockerRegistryServiceConnection)'
+              tags: |
+                $(tag)
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish manifests'
+            inputs:
+              PathtoPublish: 'infra'
+              ArtifactName: 'infra'
+              publishLocation: 'Container'
+
+  - stage: Deploy
+    displayName: Deploy to Azure Web App
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - deployment: DeployWebApp
+        displayName: 'Deploy container image'
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: infra
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy infrastructure (Bicep)'
+                  inputs:
+                    azureSubscription: '$(azureSubscriptionServiceConnection)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az deployment group create \
+                        --resource-group $(resourceGroupName) \
+                        --template-file infra/main.bicep \
+                        --parameters \
+                          acrName=$(acrName) \
+                          webAppName=$(webAppName) \
+                          appServicePlanName=$(appServicePlanName) \
+                          containerImageName=$(imageRepository) \
+                          containerImageTag=$(tag) \
+                          usePostgres=${USE_POSTGRES:-true} \
+                          postgresConnectionString="${POSTGRES_CONNECTION_STRING:-}" \
+                          environmentName=$(environmentName)
+
+                - task: AzureWebApp@1
+                  displayName: 'Update Web App container'
+                  inputs:
+                    azureSubscription: '$(azureSubscriptionServiceConnection)'
+                    appType: 'webAppLinux'
+                    appName: '$(webAppName)'
+                    imageName: '$(acrLoginServer)/$(imageRepository):$(tag)'
