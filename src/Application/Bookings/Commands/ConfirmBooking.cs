@@ -1,5 +1,32 @@
 using MediatR;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
 
 namespace AirlineBooking.Application.Bookings.Commands;
 
-public sealed record ConfirmBookingCommand(string Pnr) : IRequest<bool>;
+public sealed record ConfirmBookingCommand(
+    [Required]
+    [RegularExpression("^[A-Z0-9]{6}$", ErrorMessage = "PNR must be exactly 6 alphanumeric characters.")]
+    string Pnr
+) : IRequest<bool>, IValidatableObject
+{
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (string.IsNullOrWhiteSpace(Pnr))
+        {
+            yield return new ValidationResult("PNR cannot be empty.", new[] { nameof(Pnr) });
+            yield break;
+        }
+
+        if (Pnr.Length != 6)
+        {
+            yield return new ValidationResult("PNR must contain exactly six characters.", new[] { nameof(Pnr) });
+        }
+
+        if (Pnr.Length == 6 && Pnr.Any(ch => !char.IsLetterOrDigit(ch)))
+        {
+            yield return new ValidationResult("PNR must contain only letters and digits.", new[] { nameof(Pnr) });
+        }
+    }
+}

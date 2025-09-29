@@ -1,9 +1,10 @@
-﻿using AirlineBooking.Application.Bookings.Commands;
+using AirlineBooking.Application.Bookings.Commands;
 using AirlineBooking.Application.Bookings.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System.ComponentModel.DataAnnotations;
 
 namespace AirlineBooking.Api.Controllers;
 
@@ -24,6 +25,11 @@ public class BookingsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateBooking([FromBody] CreateBookingCommand command)
     {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
         _logger.LogInformation("Received booking creation request for flight {FlightId} with {Seats} seats", command.FlightId, command.Seats);
         var result = await _mediator.Send(command);
         _logger.LogInformation("Booking created with PNR {Pnr} and BookingId {BookingId}", result.Pnr, result.BookingId);
@@ -31,8 +37,13 @@ public class BookingsController : ControllerBase
     }
 
     [HttpPost("confirm/{pnr}")]
-    public async Task<IActionResult> ConfirmBooking(string pnr)
+    public async Task<IActionResult> ConfirmBooking([FromRoute][Required][RegularExpression("^[A-Z0-9]{6}$")] string pnr)
     {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
         _logger.LogInformation("Received booking confirmation request for PNR {Pnr}", pnr);
         var success = await _mediator.Send(new ConfirmBookingCommand(pnr));
         if (success)
@@ -46,8 +57,13 @@ public class BookingsController : ControllerBase
     }
 
     [HttpGet("{pnr}")]
-    public async Task<IActionResult> GetBooking(string pnr)
+    public async Task<IActionResult> GetBooking([FromRoute][Required][RegularExpression("^[A-Z0-9]{6}$")] string pnr)
     {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
         _logger.LogInformation("Retrieving booking details for PNR {Pnr}", pnr);
         var result = await _mediator.Send(new GetBookingByPnrQuery(pnr));
         if (result is null)

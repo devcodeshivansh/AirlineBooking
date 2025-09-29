@@ -24,6 +24,9 @@ public sealed class FlightQueryService : IFlightQueryService
 
     public async Task<IReadOnlyList<FlightDto>> SearchAsync(string from, string to, DateTime date, CancellationToken ct)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(from);
+        ArgumentException.ThrowIfNullOrWhiteSpace(to);
+
         _logger.LogInformation("Searching flights in persistence from {From} to {To} on {Date}", from, to, date);
         var dateStart = new DateTimeOffset(date, TimeSpan.Zero);
         var dateEnd = dateStart.AddDays(1);

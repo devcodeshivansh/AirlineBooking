@@ -1,5 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -23,10 +26,15 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public IActionResult Login([FromBody] LoginRequest request)
     {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
         _logger.LogInformation("Login attempt for user {Username}", request.Username);
 
         // Simple mock user check
-        if (request.Username == "admin" && request.Password == "password")
+        if (string.Equals(request.Username, "admin", StringComparison.OrdinalIgnoreCase) && request.Password == "password")
         {
             var token = GenerateJwtToken(request.Username);
             _logger.LogInformation("Successful login for user {Username}", request.Username);
@@ -64,8 +72,27 @@ public class AuthController : ControllerBase
     }
 }
 
-public class LoginRequest
+public class LoginRequest : IValidatableObject
 {
-    public string Username { get; set; }
-    public string Password { get; set; }
+    [Required]
+    [StringLength(100, MinimumLength = 3)]
+    public string Username { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(100, MinimumLength = 6)]
+    [DataType(DataType.Password)]
+    public string Password { get; set; } = string.Empty;
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Username is { } username && username.Trim().Length != username.Length)
+        {
+            yield return new ValidationResult("Username cannot start or end with whitespace.", new[] { nameof(Username) });
+        }
+
+        if (Password is { } password && password.Trim().Length != password.Length)
+        {
+            yield return new ValidationResult("Password cannot start or end with whitespace.", new[] { nameof(Password) });
+        }
+    }
 }
