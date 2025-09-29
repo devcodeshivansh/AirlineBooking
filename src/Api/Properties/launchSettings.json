@@ -2,13 +2,13 @@
   "profiles": {
     "Api": {
       "commandName": "Project",
-      "dotnetRunMessages": true,
       "launchBrowser": true,
-      "launchUrl": "swagger", // 👈 This makes it open /swagger by default
-      "applicationUrl": "https://localhost:63645;http://localhost:63646",
+      "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      }
+      },
+      "dotnetRunMessages": true,
+      "applicationUrl": "https://localhost:63645;http://localhost:63646"
     },
     "IIS Express": {
       "commandName": "IISExpress",
@@ -17,6 +17,14 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
+    }
+  },
+  "iisSettings": {
+    "windowsAuthentication": false,
+    "anonymousAuthentication": true,
+    "iisExpress": {
+      "applicationUrl": "http://localhost:51448/",
+      "sslPort": 44362
     }
   }
 }
