@@ -22,10 +22,10 @@ public sealed class FlightQueryService : IFlightQueryService
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<FlightDto>> SearchAsync(string from, string to, DateTime date, CancellationToken ct)
+    public async Task<IReadOnlyList<FlightDto>> SearchAsync(string from, string to, DateOnly date, CancellationToken ct)
     {
         _logger.LogInformation("Searching flights in persistence from {From} to {To} on {Date}", from, to, date);
-        var dateStart = new DateTimeOffset(date, TimeSpan.Zero);
+        var dateStart = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
         var dateEnd = dateStart.AddDays(1);
 
         var fromUpper = from.Trim().ToUpperInvariant();

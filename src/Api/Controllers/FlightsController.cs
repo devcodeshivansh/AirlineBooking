@@ -2,6 +2,7 @@
 using AirlineBooking.Flights.Commands;
 using AirlineBooking.Infrastructure.Persistence;
 using MediatR;
+using System;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -22,7 +23,7 @@ public class FlightsController : ControllerBase
     }
 
     [HttpGet("search")]
-    public async Task<IActionResult> SearchFlights([FromQuery] string from, [FromQuery] string to, [FromQuery] DateTime date)
+    public async Task<IActionResult> SearchFlights([FromQuery] string from, [FromQuery] string to, [FromQuery] DateOnly date)
     {
         _logger.LogInformation("Searching flights from {From} to {To} on {Date}", from, to, date);
         var result = await _mediator.Send(new SearchFlightsQuery(from, to, date));
