@@ -8,5 +8,5 @@ namespace AirlineBooking.Application.Common.Interfaces;
 
 public interface IFlightQueryService
 {
-    Task<IReadOnlyList<FlightDto>> SearchAsync(string from, string to, DateTime date, CancellationToken ct);
+    Task<IReadOnlyList<FlightDto>> SearchAsync(string from, string to, DateOnly date, CancellationToken ct);
 }
