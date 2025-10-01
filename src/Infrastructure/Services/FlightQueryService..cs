@@ -31,7 +31,10 @@ public sealed class FlightQueryService : IFlightQueryService
         var fromUpper = from.Trim().ToUpperInvariant();
         var toUpper = to.Trim().ToUpperInvariant();
 
-        var results = await _db.Flights
+
+
+        var results = _db.Flights
+            .AsEnumerable()
             .Where(f => f.FromAirport == fromUpper
                         && f.ToAirport == toUpper
                         && f.DepartureUtc >= dateStart
@@ -44,9 +47,10 @@ public sealed class FlightQueryService : IFlightQueryService
                 f.DepartureUtc,
                 f.ArrivalUtc,
                 f.BaseFare))
-            .ToListAsync(ct);
+            .ToList();
 
         _logger.LogInformation("Flight search returned {Count} records", results.Count);
+        
         return results;
     }
 }
